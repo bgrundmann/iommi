@@ -180,7 +180,13 @@ def create_or_edit_object__post_handler(*, form, is_create, **_):
             form._valid = False  # pragma: no mutate. False here is faster, but setting it to None is also fine, it just means _valid will be calculated the next time form.is_valid() is called
 
     if form.is_valid():
-        form.instance.save()
+        attributes = filter(None, [f.attr for f in form.fields.values()])
+        save_names = ['', 'f_foreign_key']
+        for n in save_names:
+            x = form.instance
+            if n:
+                x = getattr_path(x, n)
+            x.save()
 
         form.extra.on_save(form=form, instance=form.instance)
 

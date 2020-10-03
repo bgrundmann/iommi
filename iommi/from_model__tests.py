@@ -122,3 +122,35 @@ def test_field_from_model_factory_error_message():
         Field.from_model(FooFromModelTestModel, 'foo')
 
     assert str(error.value) == "No factory for CustomField. Register a factory with register_factory or register_field_factory, you can also register one that returns None to not handle this field type"
+
+
+def test_from_model():
+    class OtherModel(Model):
+        bar = CharField()
+
+    class SomeModel(Model):
+        foo = ForeignKey(OtherModel, on_delete=CASCADE)
+
+    f = Form(
+        auto__model=SomeModel,
+        auto__include=['foo__bar'],
+    )
+
+    declared_fields = f._declared_members.fields
+    assert list(declared_fields.keys()) == ['foo_bar']
+    assert declared_fields['foo_bar'].attr == 'foo__bar'
+
+
+def test_from_model_missing_subfield():
+    class OtherModel(Model):
+        bar = CharField()
+
+    class SomeModel(Model):
+        foo = ForeignKey(OtherModel, on_delete=CASCADE)
+
+    with pytest.raises(Exception) as e:
+        Form(
+            auto__model=SomeModel,
+            auto__include=['foo__barf'],
+        )
+    assert str(e.value) == ''

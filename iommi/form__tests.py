@@ -2146,6 +2146,54 @@ def test_create_and_edit_object():
     assert response['Location'] == '../../'
 
 
+@pytest.mark.django_db
+@override_settings(DEBUG=True)
+def test_edit_object_foreign_related_attribute():
+    from tests.models import CreateOrEditObjectTest, Foo
+
+    instance = CreateOrEditObjectTest.objects.create(
+        f_foreign_key=Foo.objects.create(
+            foo=17,
+        ),
+        f_int=0,
+        f_float=0.0,
+        f_bool=False,
+    )
+
+    request = req('get')
+    form = Form.edit(
+        auto__instance=instance,
+        auto__include=['f_foreign_key__foo']
+    )
+
+    form = form.bind(request=request)
+    response = form.__html__(
+        render=lambda **kwargs: kwargs,
+    )
+    assert form.get_errors() == {}
+    assert form.fields['f_foreign_key_foo'].value == 17
+    assert response['context']['csrf_token']
+
+    request = req('POST', **{
+        'f_foreign_key_foo': str(42),
+        '-submit': '',
+    })
+    form = Form.edit(
+        auto__instance=instance,
+        auto__include=['f_foreign_key__foo']
+    )
+    form = form.bind(request=request)
+    assert form.mode == FULL_FORM_FROM_REQUEST
+    response = form.render_to_response()
+    assert response.status_code == 302
+
+    assert response['Location'] == '../../'
+
+    instance.refresh_from_db()
+    assert instance is not None
+    assert instance.f_foreign_key.foo == 42
+
+
 def test_redirect_default_case():
     sentinel1, sentinel2, sentinel3, sentinel4 = object(), object(), object(), object()
     expected = dict(redirect_to=sentinel2, request=sentinel3, form=sentinel4)
