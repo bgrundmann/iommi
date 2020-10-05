@@ -31,12 +31,32 @@ def create_members_from_model(*, member_class, model, member_params_by_member_na
     members = Struct()
 
     # Validate include/exclude parameters
-    field_names = {x.name for x in get_fields(model)}
+    names_by_model = {}
+
+    def get_names(model):
+        names = names_by_model.get(model)
+        if not names:
+            names = {x.name for x in get_fields(model)}
+            names_by_model[model] = names
+        return names
+
+    def check_path(path, model):
+        first, _, rest = path.partition('__')
+        if not rest:
+            return first in get_names(model)
+        else:
+            return (
+                first in get_names(model)
+                and check_path(
+                    rest,
+                    model._meta.get_field(first).remote_field.model
+                )
+            )
 
     def check_list(l, name):
         if l:
-            not_existing = {x for x in l if x.partition('__')[0] not in field_names}
-            existing = "\n    ".join(sorted(field_names))
+            not_existing = {x for x in l if not check_path(x, model)}
+            existing = "\n    ".join(sorted(get_names(model)))
             assert not not_existing, f'You can only {name} fields that exist on the model: {", ".join(sorted(not_existing))} specified but does not exist\nExisting fields:\n    {existing}'
 
     check_list(include, 'include')
